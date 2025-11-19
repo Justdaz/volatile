@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:vasvault/constants/app_constant.dart';
-import 'package:vasvault/models/Login_request.dart';
-import 'package:vasvault/models/auth_Response.dart';
+import 'package:vasvault/models/auth_response.dart';
+import 'package:vasvault/models/login_request.dart';
 import 'package:vasvault/models/register_request.dart';
 import 'package:vasvault/utils/session_meneger.dart';
 

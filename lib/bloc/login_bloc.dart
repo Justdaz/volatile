@@ -1,8 +1,8 @@
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:meta/meta.dart';
-import 'package:vasvault/models/Login_request.dart';
-import 'package:vasvault/models/auth_Response.dart';
+import 'package:vasvault/models/auth_response.dart';
+import 'package:vasvault/models/login_request.dart';
 import 'package:vasvault/repositories/login_repository.dart';
 import 'package:vasvault/utils/session_meneger.dart';
 
