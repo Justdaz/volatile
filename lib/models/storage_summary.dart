@@ -1,3 +1,5 @@
+import 'package:vasvault/constants/app_constant.dart';
+
 class LatestFile {
   final int id;
   final int userId;
@@ -44,30 +46,66 @@ class LatestFile {
       'created_at': createdAt.toIso8601String(),
     };
   }
+
+  bool get isImage => mimeType.startsWith('image/');
+  bool get isPdf => mimeType.contains('pdf');
+  String get thumbnailUrl =>
+      '${AppConstants.baseUrl}/api/v1/files/$id/thumbnail';
+  String get fileUrl => '${AppConstants.baseUrl}/api/v1/files/$id/download';
+  String get displayName {
+    final ext = fileName.contains('.') ? fileName.split('.').last : '';
+    if (fileName.contains('-') && fileName.length > 36) {
+      return ext.toUpperCase();
+    }
+    return fileName;
+  }
+
+  String get fileTypeLabel {
+    if (mimeType.startsWith('image/')) return 'Image';
+    if (mimeType.startsWith('video/')) return 'Video';
+    if (mimeType.startsWith('audio/')) return 'Audio';
+    if (mimeType.contains('pdf')) return 'PDF';
+    if (mimeType.contains('word') || mimeType.contains('document'))
+      return 'DOC';
+    if (mimeType.contains('sheet') || mimeType.contains('excel')) return 'XLS';
+    if (mimeType.contains('presentation') || mimeType.contains('powerpoint'))
+      return 'PPT';
+    if (mimeType.contains('zip') ||
+        mimeType.contains('rar') ||
+        mimeType.contains('tar'))
+      return 'ZIP';
+    return 'File';
+  }
 }
 
 class StorageSummary {
   final int maxBytes;
   final int usedBytes;
   final int remainingBytes;
-  final LatestFile? latestFile;
+  final List<LatestFile> latestFiles;
 
   StorageSummary({
     required this.maxBytes,
     required this.usedBytes,
     required this.remainingBytes,
-    this.latestFile,
+    this.latestFiles = const [],
   });
 
   factory StorageSummary.fromJson(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>;
+
+    List<LatestFile> files = [];
+    if (data['latest_files'] != null) {
+      files = (data['latest_files'] as List)
+          .map((f) => LatestFile.fromJson(f as Map<String, dynamic>))
+          .toList();
+    }
+
     return StorageSummary(
       maxBytes: data['max_bytes'] as int,
       usedBytes: data['used_bytes'] as int,
       remainingBytes: data['remaining_bytes'] as int,
-      latestFile: data['latest_file'] != null
-          ? LatestFile.fromJson(data['latest_file'] as Map<String, dynamic>)
-          : null,
+      latestFiles: files,
     );
   }
 

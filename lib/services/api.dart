@@ -8,9 +8,82 @@ import 'package:vasvault/models/storage_summary.dart';
 import 'package:vasvault/utils/session_meneger.dart';
 
 class ApiService {
+  static final ApiService _instance = ApiService._internal();
+  factory ApiService() => _instance;
+
   final baseURL = AppConstants.baseUrl;
   final apiKey = AppConstants.tokenKey;
-  final dio = Dio();
+  late final Dio dio;
+  final SessionManager _session = SessionManager();
+
+  bool _isRefreshing = false;
+
+  ApiService._internal() {
+    dio = Dio();
+    _setupInterceptors();
+  }
+
+  void _setupInterceptors() {
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (error, handler) async {
+          if (error.response?.statusCode == 401 && !_isRefreshing) {
+            _isRefreshing = true;
+
+            try {
+              final newTokens = await _refreshToken();
+
+              if (newTokens != null) {
+                await _session.saveSession(
+                  newTokens.accessToken,
+                  newTokens.refreshToken,
+                  await _session.getId(),
+                );
+
+                final opts = error.requestOptions;
+                opts.headers['Authorization'] =
+                    'Bearer ${newTokens.accessToken}';
+
+                final response = await dio.fetch(opts);
+                _isRefreshing = false;
+                return handler.resolve(response);
+              }
+            } catch (e) {
+              _isRefreshing = false;
+              await _session.removeAccessToken();
+            }
+
+            _isRefreshing = false;
+          }
+
+          return handler.next(error);
+        },
+      ),
+    );
+  }
+
+  Future<AuthResponseModel?> _refreshToken() async {
+    try {
+      String refreshToken = await _session.getRefreshToken();
+      if (refreshToken.isEmpty) return null;
+
+      final response = await Dio().post(
+        '$baseURL/api/v1/refresh',
+        data: {'refresh_token': refreshToken},
+        options: Options(
+          headers: {'Content-Type': 'application/json', 'x-api-key': apiKey},
+          validateStatus: (status) => status! < 500,
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return AuthResponseModel.fromJson(response.data);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
 
   Future<AuthResponseModel> login(LoginRequestModel requestBody) async {
     final response = await dio.post(
@@ -24,16 +97,12 @@ class ApiService {
   }
 
   Future<AuthResponseModel> refreshToken() async {
-    final session = SessionManager();
-    String refreshToken = await session.getRefreshToken();
+    String refreshToken = await _session.getRefreshToken();
     final response = await dio.post(
       '$baseURL/api/v1/refresh',
+      data: {'refresh_token': refreshToken},
       options: Options(
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'Authorization': 'Refresh $refreshToken',
-        },
+        headers: {'Content-Type': 'application/json', 'x-api-key': apiKey},
         validateStatus: (status) {
           return status! < 500;
         },
@@ -80,8 +149,7 @@ class ApiService {
   }
 
   Future<StorageSummary> getStorageSummary() async {
-    final session = SessionManager();
-    String accessToken = await session.getAccessToken();
+    String accessToken = await _session.getAccessToken();
     final response = await dio.get(
       '$baseURL/api/v1/storage/summary',
       options: Options(
@@ -110,12 +178,10 @@ class ApiService {
     List<int>? categoryIds,
     void Function(int sent, int total)? onProgress,
   }) async {
-    final session = SessionManager();
-    String accessToken = await session.getAccessToken();
+    String accessToken = await _session.getAccessToken();
 
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
-      if (folderId != null) 'folder_id': folderId,
       if (categoryIds != null && categoryIds.isNotEmpty)
         'category_ids': categoryIds,
     });
@@ -133,7 +199,8 @@ class ApiService {
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      return FileUploadResponse.fromJson(response.data);
+      final data = response.data['data'];
+      return FileUploadResponse.fromJson(data);
     }
     String serverMessage =
         'Server returned status ${response.statusCode}: ${response.statusMessage}';

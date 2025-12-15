@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:vasvault/bloc/storage_bloc.dart';
+import 'package:vasvault/bloc/storage_event.dart';
 import 'package:vasvault/page/Home.dart';
 import 'package:vasvault/page/Profile.dart';
 import 'package:vasvault/page/Vault.dart';
@@ -16,17 +18,32 @@ class NavigationMenu extends StatefulWidget {
 class _NavigationMenuState extends State<NavigationMenu> {
   int _selectedIndex = 0;
 
+  // StorageBloc shared across pages
+  late StorageBloc _storageBloc;
+
   @override
   void initState() {
     super.initState();
+    _storageBloc = StorageBloc();
+    _storageBloc.add(LoadStorageSummary());
   }
 
-  final List<Widget> _pages = [
-    const Home(),
+  @override
+  void dispose() {
+    _storageBloc.close();
+    super.dispose();
+  }
+
+  List<Widget> get _pages => [
+    Home(storageBloc: _storageBloc),
     const Workspace(),
     const Vault(),
     const ProfilePage(),
   ];
+
+  void _refreshStorageData() {
+    _storageBloc.add(RefreshStorageSummary());
+  }
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = index == _selectedIndex;
@@ -71,7 +88,12 @@ class _NavigationMenuState extends State<NavigationMenu> {
       body: IndexedStack(index: _selectedIndex, children: _pages),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          UploadBottomSheet.show(context);
+          UploadBottomSheet.show(
+            context,
+            onUploadComplete: () {
+              _refreshStorageData();
+            },
+          );
         },
         backgroundColor: AppColors.primary,
         elevation: 4,
@@ -79,7 +101,6 @@ class _NavigationMenuState extends State<NavigationMenu> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
         notchMargin: 8,
         height: 65,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
