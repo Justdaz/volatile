@@ -19,6 +19,10 @@ class AppColors {
   static const Color error = Color(0xFFE74C3C);
   static const Color info = Color(0xFF3498DB);
 
+  // Workspace Folder Colors
+  static const Color ownedFolder = Color(0xFF6C5CE7); // Ungu - milik sendiri
+  static const Color sharedFolder = Color(0xFF00B894); // Hijau - dibagikan
+
   // Income/Expense Colors
   static const Color income = Color(0xFF00B894);
   static const Color expense = Color(0xFFE74C3C);
