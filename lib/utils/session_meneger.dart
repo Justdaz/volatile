@@ -60,4 +60,9 @@ class SessionManager {
     await pref.remove(AppConstants.accessToken);
     await pref.remove(AppConstants.refreshToken);
   }
+
+  Future<int?> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('user_id');
+  }
 }

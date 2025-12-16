@@ -1,3 +1,5 @@
+import 'package:vasvault/constants/app_constant.dart';
+
 class FileItem {
   final int id;
   final String fileName;
@@ -6,6 +8,7 @@ class FileItem {
   final String mimeType;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? _thumbnailUrl;
 
   FileItem({
     required this.id,
@@ -15,7 +18,18 @@ class FileItem {
     required this.mimeType,
     required this.createdAt,
     this.updatedAt,
-  });
+    String? thumbnailUrl,
+  }) : _thumbnailUrl = thumbnailUrl;
+
+  
+  String? get thumbnailUrl {
+    if (_thumbnailUrl != null) return _thumbnailUrl;
+    if (mimeType.startsWith('image/')) {
+      return '${AppConstants.baseUrl}/api/v1/files/$id/download';
+    }
+    
+    return null;
+  }
 
   factory FileItem.fromJson(Map<String, dynamic> json) {
     final createdAt = DateTime.parse(json['created_at'] as String);
@@ -29,6 +43,7 @@ class FileItem {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'] as String)
           : null,
+      thumbnailUrl: json['thumbnail_url'] as String?,
     );
   }
 

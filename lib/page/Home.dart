@@ -4,32 +4,17 @@ import 'package:intl/intl.dart';
 import 'package:vasvault/bloc/storage_bloc.dart';
 import 'package:vasvault/bloc/storage_event.dart';
 import 'package:vasvault/bloc/storage_state.dart';
+import 'package:vasvault/constants/app_constant.dart';
 import 'package:vasvault/models/storage_summary.dart';
+import 'package:vasvault/page/FileViewer.dart';
 import 'package:vasvault/theme/app_colors.dart';
+import 'package:vasvault/utils/session_meneger.dart';
 import 'package:vasvault/widgets/upload_bottom_sheet.dart';
 
-class Home extends StatefulWidget {
-  const Home({super.key});
+class Home extends StatelessWidget {
+  final StorageBloc storageBloc;
 
-  @override
-  State<Home> createState() => _HomeState();
-}
-
-class _HomeState extends State<Home> {
-  late StorageBloc _storageBloc;
-
-  @override
-  void initState() {
-    super.initState();
-    _storageBloc = StorageBloc();
-    _storageBloc.add(LoadStorageSummary());
-  }
-
-  @override
-  void dispose() {
-    _storageBloc.close();
-    super.dispose();
-  }
+  const Home({super.key, required this.storageBloc});
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +23,7 @@ class _HomeState extends State<Home> {
     final formattedDate = DateFormat('MMMM yyyy', 'id_ID').format(now);
 
     return BlocProvider.value(
-      value: _storageBloc,
+      value: storageBloc,
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
@@ -46,7 +31,7 @@ class _HomeState extends State<Home> {
         child: SafeArea(
           child: RefreshIndicator(
             onRefresh: () async {
-              _storageBloc.add(RefreshStorageSummary());
+              storageBloc.add(RefreshStorageSummary());
               await Future.delayed(const Duration(milliseconds: 500));
             },
             child: SingleChildScrollView(
@@ -55,7 +40,6 @@ class _HomeState extends State<Home> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
                   Text(
                     'VasVault',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -73,7 +57,6 @@ class _HomeState extends State<Home> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Storage Summary Card
                   BlocBuilder<StorageBloc, StorageState>(
                     builder: (context, state) {
                       if (state is StorageLoading) {
@@ -87,8 +70,7 @@ class _HomeState extends State<Home> {
                     },
                   ),
                   const SizedBox(height: 24),
-
-                  // Quick Actions
+    
                   Text(
                     'Aksi Cepat',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -96,10 +78,9 @@ class _HomeState extends State<Home> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildQuickActions(isDark),
+                  _buildQuickActions(context, isDark),
                   const SizedBox(height: 24),
 
-                  // Latest File Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -110,7 +91,7 @@ class _HomeState extends State<Home> {
                       ),
                       TextButton(
                         onPressed: () {
-                          // Navigate to vault/files
+                    
                         },
                         child: Text(
                           'Lihat Semua',
@@ -126,10 +107,11 @@ class _HomeState extends State<Home> {
                   BlocBuilder<StorageBloc, StorageState>(
                     builder: (context, state) {
                       if (state is StorageLoaded) {
-                        return _buildLatestFileCard(
-                          state.storageSummary.latestFile,
-                          isDark,
-                        );
+                        final files = state.storageSummary.latestFiles;
+                        if (files.isEmpty) {
+                          return _buildEmptyFileCard(isDark);
+                        }
+                        return _buildLatestFilesGrid(files, isDark);
                       }
                       return _buildEmptyFileCard(isDark);
                     },
@@ -176,7 +158,7 @@ class _HomeState extends State<Home> {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () {
-              _storageBloc.add(LoadStorageSummary());
+              storageBloc.add(LoadStorageSummary());
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -199,7 +181,6 @@ class _HomeState extends State<Home> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -229,7 +210,6 @@ class _HomeState extends State<Home> {
           ),
           const SizedBox(height: 12),
 
-          // Used storage large display
           Text(
             storage.formattedUsedBytes,
             style: const TextStyle(
@@ -240,7 +220,6 @@ class _HomeState extends State<Home> {
           ),
           const SizedBox(height: 16),
 
-          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
@@ -252,7 +231,6 @@ class _HomeState extends State<Home> {
           ),
           const SizedBox(height: 16),
 
-          // Used and Remaining row
           Row(
             children: [
               Expanded(
@@ -326,7 +304,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _buildQuickActions(bool isDark) {
+  Widget _buildQuickActions(BuildContext context, bool isDark) {
     return Row(
       children: [
         _buildQuickActionButton(
@@ -338,21 +316,13 @@ class _HomeState extends State<Home> {
             UploadBottomSheet.show(
               context,
               onUploadComplete: () {
-                _storageBloc.add(RefreshStorageSummary());
+                storageBloc.add(RefreshStorageSummary());
               },
             );
           },
         ),
-        const SizedBox(width: 12),
-        _buildQuickActionButton(
-          icon: Icons.folder_outlined,
-          label: 'Folder',
-          color: AppColors.success,
-          isDark: isDark,
-          onTap: () {
-            // Handle folders
-          },
-        ),
+
+        
         const SizedBox(width: 12),
         _buildQuickActionButton(
           icon: Icons.share_outlined,
@@ -360,7 +330,7 @@ class _HomeState extends State<Home> {
           color: AppColors.warning,
           isDark: isDark,
           onTap: () {
-            // Handle shared
+            
           },
         ),
       ],
@@ -408,87 +378,176 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _buildLatestFileCard(LatestFile? file, bool isDark) {
-    if (file == null) {
-      return _buildEmptyFileCard(isDark);
-    }
+  Widget _buildLatestFilesGrid(List<LatestFile> files, bool isDark) {
+    final displayFiles = files.length > 6 ? files.sublist(0, 6) : files;
+    final rows = (displayFiles.length / 3).ceil();
+    final gridHeight = rows * 160.0 + (rows - 1) * 12.0;
 
-    final formattedDate = DateFormat(
-      'dd MMM yyyy, HH:mm',
-    ).format(file.createdAt);
+    return SizedBox(
+      height: gridHeight,
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: displayFiles.length,
+        itemBuilder: (context, index) {
+          return _buildFileCard(context, displayFiles[index], isDark);
+        },
+      ),
+    );
+  }
+
+  Widget _buildFileCard(BuildContext context, LatestFile file, bool isDark) {
     final formattedSize = StorageSummary.formatBytes(file.size);
 
-    IconData fileIcon = Icons.insert_drive_file_outlined;
-    Color iconColor = AppColors.primary;
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => FileViewerPage(file: file)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Thumbnail or icon
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(15),
+                ),
+                child: file.isImage
+                    ? _buildThumbnailImage(file, isDark)
+                    : _buildFileTypeIcon(file, isDark),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    file.fileTypeLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.darkText : AppColors.lightText,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formattedSize,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnailImage(LatestFile file, bool isDark) {
+    return FutureBuilder<String>(
+      future: _getAuthHeaders(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return _buildFileTypeIcon(file, isDark);
+        }
+        return Image.network(
+          file.thumbnailUrl,
+          fit: BoxFit.cover,
+          headers: {
+            'Authorization': 'Bearer ${snapshot.data}',
+            'x-api-key': AppConstants.tokenKey,
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              color: isDark
+                  ? AppColors.darkBackground
+                  : AppColors.lightBackground,
+              child: Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                      : null,
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFileTypeIcon(file, isDark);
+          },
+        );
+      },
+    );
+  }
+
+  Future<String> _getAuthHeaders() async {
+    final session = SessionManager();
+    return await session.getAccessToken();
+  }
+
+  Widget _buildFileTypeIcon(LatestFile file, bool isDark) {
+    IconData icon;
+    Color color;
 
     if (file.mimeType.startsWith('image/')) {
-      fileIcon = Icons.image_outlined;
-      iconColor = AppColors.success;
+      icon = Icons.image_outlined;
+      color = AppColors.success;
     } else if (file.mimeType.startsWith('video/')) {
-      fileIcon = Icons.video_file_outlined;
-      iconColor = AppColors.error;
+      icon = Icons.video_file_outlined;
+      color = AppColors.error;
     } else if (file.mimeType.startsWith('audio/')) {
-      fileIcon = Icons.audio_file_outlined;
-      iconColor = AppColors.warning;
+      icon = Icons.audio_file_outlined;
+      color = AppColors.warning;
     } else if (file.mimeType.contains('pdf')) {
-      fileIcon = Icons.picture_as_pdf_outlined;
-      iconColor = AppColors.error;
+      icon = Icons.picture_as_pdf_outlined;
+      color = AppColors.error;
+    } else if (file.mimeType.contains('presentation') ||
+        file.mimeType.contains('powerpoint')) {
+      icon = Icons.slideshow_outlined;
+      color = Colors.orange;
+    } else if (file.mimeType.contains('word') ||
+        file.mimeType.contains('document')) {
+      icon = Icons.description_outlined;
+      color = Colors.blue;
+    } else if (file.mimeType.contains('sheet') ||
+        file.mimeType.contains('excel')) {
+      icon = Icons.table_chart_outlined;
+      color = Colors.green;
+    } else {
+      icon = Icons.insert_drive_file_outlined;
+      color = AppColors.primary;
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(fileIcon, color: iconColor, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  file.fileName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkText : AppColors.lightText,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$formattedSize • $formattedDate',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.lightTextSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.chevron_right,
-            color: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.lightTextSecondary,
-          ),
-        ],
-      ),
+      color: color.withValues(alpha: 0.1),
+      child: Center(child: Icon(icon, size: 40, color: color)),
     );
   }
 
