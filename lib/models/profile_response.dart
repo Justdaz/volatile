@@ -16,18 +16,24 @@ class ProfileResponse {
   });
 
   factory ProfileResponse.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as Map<String, dynamic>?;
-    final user = data?['user'] as Map<String, dynamic>? ?? json;
-    
+    final data = json['data'] as Map<String, dynamic>? ?? json;
     return ProfileResponse(
-      id: user['id'] as int? ?? 0,
-      username: user['username'] as String? ?? '',
-      fullName: user['full_name'] as String? ?? user['username'] ?? '',
-      email: user['email'] as String? ?? '',
-      profilePicture: user['profile_picture'] as String?,
-      createdAt: user['created_at'] != null
-          ? DateTime.tryParse(user['created_at'] as String)
-          : null,
+      id: data['id'] as int? ?? 0,
+      username: data['username'] as String? ?? '',
+      fullName:
+          (data['fullName'] as String?) ??
+          (data['full_name'] as String?) ??
+          (data['username'] as String?) ??
+          '',
+      email: data['email'] as String? ?? '',
+      profilePicture:
+          (data['profilePicture'] as String?) ??
+          (data['profile_picture'] as String?),
+      createdAt: data['created_at'] != null
+          ? DateTime.tryParse(data['created_at'] as String)
+          : (data['createdAt'] != null
+                ? DateTime.tryParse(data['createdAt'] as String)
+                : null),
     );
   }
 

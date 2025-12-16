@@ -56,11 +56,7 @@ class _VaultState extends State<Vault> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    context.read<VaultBloc>().add(LoadVaultFiles());
-  }
+
 
   @override
   Widget build(BuildContext context) {
