@@ -25,7 +25,7 @@ class _WorkspaceDetailPageState extends State<WorkspaceDetailPage> {
   final WorkspaceService _service = WorkspaceService();
   final SessionManager _sessionManager = SessionManager();
   late Future<List<WorkspaceFile>> _filesFuture;
-  String _currentUserRole = 'owner';
+  String _currentUserRole = 'viewer';
 
   @override
   void initState() {
@@ -42,35 +42,47 @@ class _WorkspaceDetailPageState extends State<WorkspaceDetailPage> {
 
   Future<void> _fetchCurrentUserRole() async {
     final currentUserId = await _sessionManager.getUserId();
-    print('Current User ID: $currentUserId');
-    if (currentUserId == null) return;
+    if (currentUserId == null) {
+      debugPrint('User ID is null, returning early');
+      return;
+    }
 
     try {
-      final members = await _service.getWorkspaceMembers(widget.workspace.id);
+      final workspaceDetail = await _service.getWorkspaceDetail(
+        widget.workspace.id,
+      );
+      final members = workspaceDetail.members;
+
+      for (var i = 0; i < members.length; i++) {
+        debugPrint(
+          'Member[$i]: id=${members[i].id}, email=${members[i].email}, role=${members[i].role}',
+        );
+      }
 
       final userMember = members.firstWhere(
         (member) => member.id == currentUserId,
-
-        orElse: () =>
-            WorkspaceMember(id: currentUserId, email: '', role: 'viewer'),
+        orElse: () {
+          debugPrint(
+            'User tidak ditemukan di members, menggunakan default viewer',
+          );
+          return WorkspaceMember(id: currentUserId, email: '', role: 'viewer');
+        },
       );
 
       if (mounted) {
         setState(() {
           _currentUserRole = userMember.role;
-          debugPrint(
-            'Peran pengguna saat ini di Workspace ID ${widget.workspace.id}: $_currentUserRole',
-          );
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint("Gagal fetch role: $e");
+      debugPrint("StackTrace: $stackTrace");
     }
   }
 
   Future<void> _openFile(String url) async {
     final Uri uri = Uri.parse(url);
-    debugPrint("Mencoba buka URL: $url"); 
+    debugPrint("Mencoba buka URL: $url");
 
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
@@ -203,7 +215,6 @@ class _WorkspaceDetailPageState extends State<WorkspaceDetailPage> {
                           }
                         : null,
                   ),
-                  
 
                   if (canManageMembers)
                     IconButton(
@@ -355,14 +366,16 @@ class _WorkspaceDetailPageState extends State<WorkspaceDetailPage> {
                         onPressed: () => _openFile(file.fullDownloadUrl),
                       ),
 
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.redAccent,
+                      if (_currentUserRole == 'owner' ||
+                          _currentUserRole == 'admin')
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () =>
+                              _showDeleteDialog(file.id, file.fileName),
                         ),
-                        onPressed: () =>
-                            _showDeleteDialog(file.id, file.fileName),
-                      ),
                     ],
                   ),
                 ),
@@ -371,42 +384,52 @@ class _WorkspaceDetailPageState extends State<WorkspaceDetailPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          FilePickerResult? result = await FilePicker.platform.pickFiles();
-          if (result != null) {
-            File file = File(result.files.single.path!);
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sedang mengupload...')),
-            );
-            debugPrint(
-              'Mengupload file ke Workspace ID: ${widget.workspace.id}',
-            );
-            bool success = await _service.uploadFile(widget.workspace.id, file);
-            if (!context.mounted) return;
-            if (success) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Berhasil upload!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              _refreshFiles();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Gagal upload file'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.upload_file, color: Colors.white),
-        label: const Text("Upload File", style: TextStyle(color: Colors.white)),
-      ),
+      floatingActionButton:
+          (_currentUserRole == 'owner' || _currentUserRole == 'admin')
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                FilePickerResult? result = await FilePicker.platform
+                    .pickFiles();
+                if (result != null) {
+                  File file = File(result.files.single.path!);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sedang mengupload...')),
+                  );
+                  debugPrint(
+                    'Mengupload file ke Workspace ID: ${widget.workspace.id}',
+                  );
+                  bool success = await _service.uploadFile(
+                    widget.workspace.id,
+                    file,
+                  );
+                  if (!context.mounted) return;
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Berhasil upload!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    _refreshFiles();
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Gagal upload file'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              backgroundColor: AppColors.primary,
+              icon: const Icon(Icons.upload_file, color: Colors.white),
+              label: const Text(
+                "Upload File",
+                style: TextStyle(color: Colors.white),
+              ),
+            )
+          : null,
     );
   }
 }

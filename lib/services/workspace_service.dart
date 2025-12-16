@@ -1,38 +1,90 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/workspace_member_model.dart';
 import '../models/workspace_model.dart';
 import '../constants/app_constant.dart';
 import '../utils/session_meneger.dart';
 import 'package:flutter/material.dart';
 import 'package:vasvault/models/workspace_file_model.dart';
+import 'package:vasvault/models/auth_response.dart';
 
 class WorkspaceService {
   final String baseUrl = '${AppConstants.baseUrl}/api/v1';
+  final SessionManager _session = SessionManager();
 
-  final Dio _dio = Dio();
+  late final Dio _dio;
+  bool _isRefreshing = false;
 
   WorkspaceService() {
+    _dio = Dio();
     _dio.options.baseUrl = baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 10);
     _dio.options.receiveTimeout = const Duration(seconds: 10);
 
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final prefs = await SharedPreferences.getInstance();
-          final token = prefs.getString('access_token');
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
+        onError: (error, handler) async {
+          if (error.response?.statusCode == 401 && !_isRefreshing) {
+            _isRefreshing = true;
+
+            try {
+              final newTokens = await _refreshToken();
+
+              if (newTokens != null) {
+                await _session.saveSession(
+                  newTokens.accessToken,
+                  newTokens.refreshToken,
+                  await _session.getId(),
+                );
+
+                final opts = error.requestOptions;
+                opts.headers['Authorization'] =
+                    'Bearer ${newTokens.accessToken}';
+
+                final response = await _dio.fetch(opts);
+                _isRefreshing = false;
+                return handler.resolve(response);
+              }
+            } catch (e) {
+              _isRefreshing = false;
+              await _session.removeAccessToken();
+            }
+
+            _isRefreshing = false;
           }
-          return handler.next(options);
-        },
-        onError: (DioException e, handler) {
-          return handler.next(e);
+
+          return handler.next(error);
         },
       ),
     );
+  }
+
+  Future<AuthResponseModel?> _refreshToken() async {
+    try {
+      String refreshToken = await _session.getRefreshToken();
+      if (refreshToken.isEmpty) return null;
+
+      final response = await Dio().post(
+        '${AppConstants.baseUrl}/api/v1/refresh',
+        data: {'refresh_token': refreshToken},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': AppConstants.tokenKey,
+          },
+          validateStatus: (status) => status! < 500,
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return AuthResponseModel.fromJson(response.data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Refresh token error: $e');
+      return null;
+    }
   }
 
   Future<List<Workspace>> getWorkspaces({String query = ''}) async {
@@ -47,7 +99,7 @@ class WorkspaceService {
 
     try {
       final response = await _dio.get(
-        '$baseUrl/workspaces',
+        '/workspaces',
         queryParameters: query.isNotEmpty ? {'search': query} : null,
 
         options: Options(
@@ -97,8 +149,24 @@ class WorkspaceService {
   }
 
   Future<Workspace> getWorkspaceDetail(int id) async {
+    final session = SessionManager();
+    final String? token = await session.getAccessToken();
+
+    if (token == null) {
+      throw Exception('Token tidak ditemukan, silakan login ulang.');
+    }
+
     try {
-      final response = await _dio.get('/workspaces/$id');
+      final response = await _dio.get(
+        '/workspaces/$id',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'x-api-key': AppConstants.tokenKey,
+          },
+        ),
+      );
+      print(response.data);
       return Workspace.fromJson(response.data['data']);
     } on DioException catch (e) {
       throw Exception(_handleError(e));
@@ -239,31 +307,34 @@ class WorkspaceService {
     }
   }
 
-  Future<List<WorkspaceMember>> getWorkspaceMembers(int workspaceId) async {
-    final session = SessionManager();
-    final String? token = await session.getAccessToken();
+Future<List<WorkspaceMember>> getWorkspaceMembers(int workspaceId) async {
+  final session = SessionManager();
+  final String? token = await session.getAccessToken();
 
-    if (token == null) return [];
+  if (token == null) return [];
 
-    try {
-      final response = await _dio.get(
-        '/workspaces/$workspaceId/members',
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $token',
-            'x-api-key': AppConstants.tokenKey,
-          },
-        ),
-      );
+  try {
+    final response = await _dio.get(
+      '/workspaces/$workspaceId',
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+          'x-api-key': AppConstants.tokenKey,
+        },
+      ),
+    );
 
-      final List result = response.data['data'] ?? [];
+    final List members = response.data['data']['members'] ?? [];
 
-      return result.map((e) => WorkspaceMember.fromJson(e)).toList();
-    } catch (e) {
-      debugPrint('Gagal ambil list member: $e');
-      return [];
-    }
+    return members
+        .map((e) => WorkspaceMember.fromJson(e))
+        .toList();
+  } catch (e) {
+    debugPrint('Gagal ambil list member: $e');
+    return [];
   }
+}
+
 
   Future<bool> updateMemberRole(
     int workspaceId,
