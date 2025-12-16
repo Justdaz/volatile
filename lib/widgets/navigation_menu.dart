@@ -35,7 +35,7 @@ class _NavigationMenuState extends State<NavigationMenu> {
 
   List<Widget> get _pages => [
     Home(storageBloc: _storageBloc),
-    const Workspace(),
+    const WorkspacePage(),
     const Vault(),
     const ProfilePage(),
   ];

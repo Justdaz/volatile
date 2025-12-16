@@ -21,16 +21,13 @@ class FileItem {
     String? thumbnailUrl,
   }) : _thumbnailUrl = thumbnailUrl;
 
-  /// Get the thumbnail URL for this file
-  /// For images, uses the file download endpoint
-  /// Returns null for non-image files
+  
   String? get thumbnailUrl {
     if (_thumbnailUrl != null) return _thumbnailUrl;
-
-    // Generate thumbnail URL for images
     if (mimeType.startsWith('image/')) {
       return '${AppConstants.baseUrl}/api/v1/files/$id/download';
     }
+    
     return null;
   }
 
