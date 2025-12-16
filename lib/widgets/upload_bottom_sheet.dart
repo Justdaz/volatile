@@ -305,48 +305,37 @@ class UploadBottomSheet extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.darkBackground
-                : AppColors.lightBackground,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.primary.withValues(alpha: 0.05),
+                AppColors.primary.withValues(alpha: 0.1),
+              ],
+            ),
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.2),
+              width: 1,
+            ),
           ),
           child: Column(
             children: [
-              // Progress indicator
-              SizedBox(
-                width: 80,
-                height: 80,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 80,
-                      height: 80,
-                      child: CircularProgressIndicator(
-                        value: state.progress,
-                        strokeWidth: 6,
-                        backgroundColor: AppColors.primary.withValues(
-                          alpha: 0.2,
-                        ),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '$percentage%',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? AppColors.darkText
-                            : AppColors.lightText,
-                      ),
-                    ),
-                  ],
+              // Animated cloud icon with progress
+              _AnimatedUploadIcon(progress: state.progress),
+              const SizedBox(height: 20),
+
+              // Progress percentage
+              Text(
+                '$percentage%',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
+
               Text(
                 'Mengupload...',
                 style: TextStyle(
@@ -355,7 +344,7 @@ class UploadBottomSheet extends StatelessWidget {
                   color: isDark ? AppColors.darkText : AppColors.lightText,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 state.fileName,
                 style: TextStyle(
@@ -367,10 +356,127 @@ class UploadBottomSheet extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              const SizedBox(height: 20),
+
+              // Linear progress bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: state.progress,
+                  minHeight: 8,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Progress text
+              Text(
+                percentage < 100 ? 'Mohon tunggu...' : 'Hampir selesai...',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+              ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+// Animated upload icon with pulsing effect
+class _AnimatedUploadIcon extends StatefulWidget {
+  final double progress;
+
+  const _AnimatedUploadIcon({required this.progress});
+
+  @override
+  State<_AnimatedUploadIcon> createState() => _AnimatedUploadIconState();
+}
+
+class _AnimatedUploadIconState extends State<_AnimatedUploadIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    _opacityAnimation = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(
+                alpha: _opacityAnimation.value * 0.2,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(
+                    alpha: _opacityAnimation.value * 0.3,
+                  ),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Circular progress background
+                SizedBox(
+                  width: 70,
+                  height: 70,
+                  child: CircularProgressIndicator(
+                    value: widget.progress,
+                    strokeWidth: 4,
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                ),
+                // Cloud upload icon
+                Icon(Icons.cloud_upload_rounded, size: 32, color: Colors.white),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
