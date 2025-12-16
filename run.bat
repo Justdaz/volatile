@@ -1,6 +1,5 @@
 @echo off
 setlocal enabledelayedexpansion
-
 set ENV_FILE=.env
 set DEFINES_FILE=defines.json
 
